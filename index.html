@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agenda Corporativa</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #2563eb; --success: #22c55e; --danger: #ef4444;
+            --warning: #f59e0b; --bg: #f1f5f9; --sidebar: #1e293b;
+            --sidebar-width: 280px;
+        }
+        * { box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; margin: 0; background: var(--bg); color: #1e293b; height: 100vh; overflow: hidden; }
+        .app-container { display: flex; height: 100vh; width: 100vw; transition: 0.3s; }
+        
+        .sidebar { 
+            width: var(--sidebar-width); background: var(--sidebar); color: white; 
+            padding: 20px; display: flex; flex-direction: column; transition: 0.3s; 
+            position: relative; z-index: 1000;
+        }
+        .sidebar.collapsed { width: 0; padding: 0; overflow: hidden; }
+        .menu-toggle { position: fixed; top: 15px; left: 15px; z-index: 1100; background: var(--primary); color: white; border: none; border-radius: 8px; padding: 10px; cursor: pointer; }
+
+        .notes-container { flex: 1; display: flex; flex-direction: column; margin-top: 20px; min-height: 0; }
+        #user-notes { flex: 1; width: 100%; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #38bdf8; padding: 12px; font-size: 13px; resize: none; }
+        #save-log { font-size: 10px; color: var(--success); opacity: 0; transition: 0.3s; text-align: right; margin-top: 5px; }
+
+        .main-content { flex: 1; padding: 20px; overflow-y: auto; padding-top: 70px; }
+        .view-section { display: none; }
+        .view-section.active { display: block; }
+
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 20px; }
+        .grid-layout { display: grid; grid-template-columns: 1.5fr 1fr; gap: 20px; }
+        @media (max-width: 850px) { .grid-layout { grid-template-columns: 1fr; } .sidebar { position: fixed; height: 100%; left: 0; } .sidebar.collapsed { left: -300px; } }
+
+        .nav-item { padding: 14px; cursor: pointer; border-radius: 8px; margin-bottom: 8px; color: #94a3b8; display: flex; align-items: center; gap: 10px; }
+        .nav-item.active { background: #334155; color: white; border-left: 4px solid #38bdf8; }
+        
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+        .day-cell { min-height: 70px; background: white; border-radius: 6px; padding: 5px; border: 1px solid #e2e8f0; cursor: pointer; font-size: 12px; }
+        .day-cell.selected { border: 2px solid var(--primary); background: #f0f7ff; }
+        .tag { font-size: 8px; padding: 2px 4px; border-radius: 3px; color: white; display: block; margin-top: 2px; }
+
+        input, select, textarea { padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; width: 100%; margin-bottom: 10px; font-size: 15px; }
+        .btn-main { background: var(--primary); color: white; padding: 14px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; width: 100%; }
+        
+        .item-card { background: white; border-radius: 8px; padding: 12px; margin-bottom: 8px; border-left: 4px solid var(--primary); display: flex; justify-content: space-between; align-items: center; }
+        .trata-item { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 15px; margin-bottom: 15px; border-left: 5px solid var(--primary); }
+        .resp-box { background: #eff6ff; padding: 10px; border-radius: 6px; margin-top: 10px; border: 1px dashed #bfdbfe; font-size: 13px; }
+        
+        .btn-mini { padding: 6px 12px; border-radius: 4px; border: none; cursor: pointer; font-size: 12px; margin-left: 5px; font-weight: bold; }
+        .btn-edit { background: #fef3c7; color: #92400e; }
+        .btn-del { background: #fee2e2; color: #991b1b; }
+
+        #login-screen { position: fixed; inset: 0; background: var(--sidebar); z-index: 9999; display: flex; align-items: center; justify-content: center; }
+        .login-card { background: white; padding: 30px; border-radius: 16px; width: 350px; text-align: center; }
+    </style>
+</head>
+<body>
+
+<button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+
+<div id="login-screen">
+    <div class="login-card">
+        <h2 style="color: var(--primary)">Agenda Corporativa</h2>
+        <input type="text" id="loginUser" placeholder="Usuário">
+        <input type="password" id="loginPass" placeholder="Senha">
+        <button class="btn-main" onclick="handleLogin()">ENTRAR</button>
+    </div>
+</div>
+
+<div class="app-container" id="app-body">
+    <aside class="sidebar" id="mainSidebar">
+        <h3 style="color:#38bdf8; text-align: center;">Agenda Corporativa</h3>
+        <div id="userInfoDisplay" style="font-size: 11px; text-align: center; margin-bottom: 15px; color: #94a3b8;"></div>
+        
+        <nav>
+            <div class="nav-item active" id="nav-agenda" onclick="showView('agenda-view', this)">📅 Agenda</div>
+            <div class="nav-item" id="nav-tratativas" onclick="showView('tratativas-view', this)">🤝 Tratativas</div>
+            <div id="nav-cadastros" class="nav-item" style="display:none" onclick="showView('config-view', this)">⚙️ Cadastros</div>
+        </nav>
+        
+        <div class="notes-container">
+            <label style="font-size: 10px; color: #94a3b8; font-weight: bold;">NOTAS PRIVADAS</label>
+            <textarea id="user-notes"></textarea>
+            <div id="save-log">✔ Salvo</div>
+            <button onclick="location.reload()" style="width:100%; margin-top:10px; background:var(--danger); color:white; border:none; padding:10px; border-radius:8px; cursor:pointer;">Sair</button>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <section id="agenda-view" class="view-section active">
+            <div class="grid-layout">
+                <div class="card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px">
+                        <button onclick="changeMonth(-1)">◀</button>
+                        <h3 id="monthDisplay"></h3>
+                        <button onclick="changeMonth(1)">▶</button>
+                    </div>
+                    <div class="calendar-grid" id="calendarGrid"></div>
+                </div>
+                <div class="card">
+                    <h3>Agendamento</h3>
+                    <input type="hidden" id="editTaskId">
+                    <input type="text" id="taskInput" placeholder="O que agendar?">
+                    <select id="taskType" onchange="toggleRecurso()">
+                        <option value="particular">🔒 Particular (Só eu vejo)</option>
+                        <option value="veiculo">🚗 Veículo (Público)</option>
+                        <option value="sala">🏢 Sala (Público)</option>
+                    </select>
+                    <select id="recSelect" style="display:none"></select>
+                    <button class="btn-main" id="btnSaveTask" onclick="saveTask()">SALVAR</button>
+                    <div id="taskList" style="margin-top:20px"></div>
+                </div>
+            </div>
+        </section>
+
+        <section id="tratativas-view" class="view-section">
+            <h2>🤝 Alinhamentos e Tratativas</h2>
+            <div class="card">
+                <input type="hidden" id="editTrataId">
+                <select id="tColab"></select>
+                <textarea id="tDesc" placeholder="Descreva o que foi acordado..." rows="3"></textarea>
+                <textarea id="tResp" placeholder="Resposta/Feedback..." rows="2" style="background: #f0f7ff"></textarea>
+                <button class="btn-main" onclick="saveTratativa()">REGISTRAR TRATATIVA</button>
+            </div>
+            <div id="trataListUI"></div>
+        </section>
+
+        <section id="config-view" class="view-section">
+            <h2>⚙️ Cadastros</h2>
+            <div class="grid-layout">
+                <div class="card">
+                    <h3>👥 Usuários</h3>
+                    <input type="text" id="uNome" placeholder="Nome">
+                    <input type="text" id="uLogin" placeholder="Login">
+                    <input type="text" id="uPass" placeholder="Senha">
+                    <button class="btn-main" onclick="saveUser()">SALVAR USUÁRIO</button>
+                    <div id="userListUI" style="margin-top:15px"></div>
+                </div>
+                <div class="card">
+                    <h3>🚗 Recursos</h3>
+                    <input type="text" id="rNome" placeholder="Nome">
+                    <select id="rTipo"><option value="veiculos">Veículo</option><option value="salas">Sala</option></select>
+                    <button class="btn-main" onclick="saveRecurso()">SALVAR RECURSO</button>
+                    <div id="recListUI" style="margin-top:15px"></div>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getFirestore, collection, addDoc, onSnapshot, doc, setDoc, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyBkRNkuV13qFEsMR2sK0Bddiz735Tn9_Jc",
+        authDomain: "meu-gerenciador-de-taref-6ffce.firebaseapp.com",
+        projectId: "meu-gerenciador-de-taref-6ffce",
+        storageBucket: "meu-gerenciador-de-taref-6ffce.firebasestorage.app",
+        messagingSenderId: "4772225209",
+        appId: "1:4772225209:web:87456d358a0d47bb483b68"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    let dbTasks = [], dbUsers = [], dbCars = [], dbSalas = [], dbTratas = [], currentUser = null, saveTimer;
+    let selectedDate = new Date().toISOString().split('T')[0], viewDate = new Date(); viewDate.setDate(1);
+
+    // FUNÇÕES GLOBAIS PARA O HTML
+    window.toggleSidebar = () => document.getElementById('mainSidebar').classList.toggle('collapsed');
+    window.deleteItem = async (coll, id) => { if(confirm("Deseja realmente excluir?")) await deleteDoc(doc(db, coll, id)); };
+
+    window.handleLogin = () => {
+        const u = document.getElementById('loginUser').value;
+        const p = document.getElementById('loginPass').value;
+        const found = (u.toLowerCase() === 'admin' && p === '123') ? {nome:'Admin', login:'admin', id:'admin'} : dbUsers.find(x => x.login === u && x.pass === p);
+        if(found) {
+            currentUser = found;
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('app-body').style.display = 'flex';
+            document.getElementById('userInfoDisplay').innerText = `Logado: ${found.nome}`;
+            if(found.login === 'admin') document.getElementById('nav-cadastros').style.display = 'flex';
+            loadPrivateNotes(); renderCalendar();
+        } else alert("Usuário ou senha inválidos.");
+    };
+
+    function loadPrivateNotes() {
+        onSnapshot(doc(db, "notas_privadas", currentUser.id), s => {
+            if(s.exists() && document.activeElement !== document.getElementById('user-notes')) document.getElementById('user-notes').value = s.data().conteudo;
+        });
+        document.getElementById('user-notes').oninput = (e) => {
+            clearTimeout(saveTimer);
+            saveTimer = setTimeout(async () => {
+                await setDoc(doc(db, "notas_privadas", currentUser.id), { conteudo: e.target.value });
+                document.getElementById('save-log').style.opacity = 1;
+                setTimeout(() => document.getElementById('save-log').style.opacity = 0, 2000);
+            }, 800);
+        };
+    }
+
+    window.showView = (id, el) => {
+        document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        document.getElementById(id).classList.add('active'); el.classList.add('active');
+        if(window.innerWidth < 850) toggleSidebar();
+    };
+
+    // AGENDA
+    onSnapshot(collection(db, "tarefas"), s => {
+        dbTasks = s.docs.map(d => ({id:d.id, ...d.data()}));
+        renderCalendar();
+    });
+
+    function renderCalendar() {
+        const grid = document.getElementById('calendarGrid'); grid.innerHTML = "";
+        document.getElementById('monthDisplay').innerText = viewDate.toLocaleDateString('pt-BR', {month:'long', year:'numeric'});
+        const days = new Date(viewDate.getFullYear(), viewDate.getMonth()+1, 0).getDate();
+        const start = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1).getDay();
+        for(let i=0; i<start; i++) grid.appendChild(document.createElement('div'));
+        
+        for(let d=1; d<=days; d++) {
+            const dStr = `${viewDate.getFullYear()}-${String(viewDate.getMonth()+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            const cell = document.createElement('div'); cell.className = `day-cell ${dStr === selectedDate ? 'selected' : ''}`;
+            cell.innerHTML = `<b>${d}</b>`;
+            dbTasks.filter(t => t.data === dStr).forEach(t => {
+                if(t.tipo !== 'particular' || t.criadorId === currentUser.id) {
+                    const cor = t.tipo === 'particular' ? '#2563eb' : (t.tipo === 'veiculo' ? '#f59e0b' : '#22c55e');
+                    cell.innerHTML += `<span class="tag" style="background:${cor}">${t.texto.substring(0,8)}</span>`;
+                }
+            });
+            cell.onclick = () => { selectedDate = dStr; renderCalendar(); };
+            grid.appendChild(cell);
+        }
+        const list = document.getElementById('taskList'); list.innerHTML = "";
+        dbTasks.filter(t => t.data === selectedDate).forEach(t => {
+            if(t.tipo !== 'particular' || t.criadorId === currentUser.id) {
+                const canManage = (t.criadorId === currentUser.id || currentUser.login === 'admin');
+                list.innerHTML += `<div class="item-card">
+                    <div style="font-size:13px"><b>${t.tipo.toUpperCase()}</b>: ${t.texto} <br><small>Por: ${t.criadorNome}</small></div>
+                    ${canManage ? `<div><button class="btn-mini btn-edit" onclick="editTask('${t.id}')">E</button><button class="btn-mini btn-del" onclick="deleteItem('tarefas','${t.id}')">✕</button></div>` : ''}
+                </div>`;
+            }
+        });
+    }
+
+    window.saveTask = async () => {
+        const id = document.getElementById('editTaskId').value;
+        const rec = document.getElementById('recSelect').value;
+        const payload = { 
+            texto: rec ? `[${rec}] ${document.getElementById('taskInput').value}` : document.getElementById('taskInput').value, 
+            tipo: document.getElementById('taskType').value, data: selectedDate, 
+            criadorId: currentUser.id, criadorNome: currentUser.nome 
+        };
+        if(id) await setDoc(doc(db, "tarefas", id), payload); else await addDoc(collection(db, "tarefas"), payload);
+        document.getElementById('editTaskId').value = ""; document.getElementById('taskInput').value = "";
+    };
+
+    window.editTask = (id) => {
+        const t = dbTasks.find(x => x.id === id);
+        document.getElementById('editTaskId').value = id;
+        document.getElementById('taskInput').value = t.texto;
+        document.getElementById('taskType').value = t.tipo;
+    };
+
+    // TRATATIVAS
+    window.saveTratativa = async () => {
+        const id = document.getElementById('editTrataId').value;
+        const payload = { 
+            colab: document.getElementById('tColab').value, desc: document.getElementById('tDesc').value, 
+            resp: document.getElementById('tResp').value, criadorId: currentUser.id, timestamp: new Date() 
+        };
+        if(id) await setDoc(doc(db, "tratativas", id), payload); else await addDoc(collection(db, "tratativas"), payload);
+        document.getElementById('editTrataId').value = ""; document.getElementById('tDesc').value = ""; document.getElementById('tResp').value = "";
+    };
+
+    onSnapshot(query(collection(db, "tratativas"), orderBy("timestamp", "desc")), s => {
+        dbTratas = s.docs.map(d => ({id:d.id, ...d.data()}));
+        const ui = document.getElementById('trataListUI'); ui.innerHTML = "";
+        dbTratas.forEach(t => {
+            if(t.criadorId === currentUser.id || currentUser.login === 'admin') {
+                ui.innerHTML += `<div class="trata-item">
+                    <div style="display:flex; justify-content:space-between; align-items:start">
+                        <div><b>Colaborador:</b> ${t.colab}</div>
+                        <div>
+                            <button class="btn-mini btn-edit" onclick="editTrata('${t.id}')">E</button>
+                            <button class="btn-mini btn-del" onclick="deleteItem('tratativas','${t.id}')">✕</button>
+                        </div>
+                    </div>
+                    <div style="margin-top:5px"><b>Acordado:</b> ${t.desc}</div>
+                    <div class="resp-box"><b>Feedback:</b> ${t.resp || 'Nenhum feedback.'}</div>
+                </div>`;
+            }
+        });
+    });
+
+    window.editTrata = (id) => {
+        const t = dbTratas.find(x => x.id === id);
+        document.getElementById('editTrataId').value = id;
+        document.getElementById('tColab').value = t.colab;
+        document.getElementById('tDesc').value = t.desc;
+        document.getElementById('tResp').value = t.resp;
+    };
+
+    // CADASTROS (Admin)
+    onSnapshot(collection(db, "usuarios"), s => {
+        dbUsers = s.docs.map(d => ({id:d.id, ...d.data()}));
+        const ui = document.getElementById('userListUI'); const selT = document.getElementById('tColab');
+        ui.innerHTML = ""; selT.innerHTML = '<option value="">Selecionar Colaborador...</option>';
+        dbUsers.forEach(u => {
+            ui.innerHTML += `<div class='item-card'>${u.nome} <button class="btn-mini btn-del" onclick="deleteItem('usuarios','${u.id}')">✕</button></div>`;
+            selT.innerHTML += `<option value="${u.nome}">${u.nome}</option>`;
+        });
+    });
+
+    window.saveUser = () => addDoc(collection(db, "usuarios"), { nome: document.getElementById('uNome').value, login: document.getElementById('uLogin').value, pass: document.getElementById('uPass').value });
+    window.saveRecurso = () => addDoc(collection(db, document.getElementById('rTipo').value), { nome: document.getElementById('rNome').value });
+    
+    onSnapshot(collection(db, "veiculos"), s => { dbCars = s.docs.map(d => ({id:d.id, ...d.data()})); updateRecUI(); });
+    onSnapshot(collection(db, "salas"), s => { dbSalas = s.docs.map(d => ({id:d.id, ...d.data()})); updateRecUI(); });
+    
+    function updateRecUI() {
+        const ui = document.getElementById('recListUI'); ui.innerHTML = "";
+        dbCars.forEach(r => ui.innerHTML += `<div class='item-card'>🚗 ${r.nome} <button class="btn-mini btn-del" onclick="deleteItem('veiculos','${r.id}')">✕</button></div>`);
+        dbSalas.forEach(r => ui.innerHTML += `<div class='item-card'>🏢 ${r.nome} <button class="btn-mini btn-del" onclick="deleteItem('salas','${r.id}')">✕</button></div>`);
+    }
+
+    // UTILITÁRIOS CALENDÁRIO
+    window.changeMonth = (dir) => { viewDate.setMonth(viewDate.getMonth() + dir); renderCalendar(); };
+    window.toggleRecurso = () => {
+        const type = document.getElementById('taskType').value;
+        const sel = document.getElementById('recSelect'); sel.innerHTML = "";
+        if(type === 'veiculo') { sel.style.display="block"; dbCars.forEach(c => sel.innerHTML += `<option>${c.nome}</option>`); }
+        else if(type === 'sala') { sel.style.display="block"; dbSalas.forEach(s => sel.innerHTML += `<option>${s.nome}</option>`); }
+        else sel.style.display="none";
+    };
+
+    renderCalendar();
+</script>
+</body>
+</html>
